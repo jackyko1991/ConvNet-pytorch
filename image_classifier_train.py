@@ -21,10 +21,10 @@ def load_data(data_path,batch_size):
 
 	#load CIFAR10 dataset, applying the above transform
 	train_set = torchvision.datasets.CIFAR10(root=data_path,train=True,download=False, transform=transform)
-	train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=3, pin_memory= True) # workers refers number of threads used
+	train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=0, pin_memory= True) # workers refers number of threads used
 
 	test_set = torchvision.datasets.CIFAR10(root=data_path,train=False,download=False, transform=transform)
-	test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=3, pin_memory= True)
+	test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=0, pin_memory= True)
 
 	return [train_loader, test_loader]
 
@@ -48,21 +48,21 @@ def train(train_loader,net,epoch,criterion,optimizer,use_cuda,snapshot_path,snap
 
 		# print statistics
 		running_loss += loss.data[0] # for average running loss over 2000 mini-batches
-		if i % 2000 == 1999:    # print every 2000 mini-batches
+		if i % snapshot_interval == snapshot_interval-1:    # print every 2000 mini-batches
 			print('[epoch: %d, batch: %5d/%5d] loss: %.3f' % \
-				(epoch + 1, i + 1, len(train_loader.dataset)/train_loader.batch_size,running_loss / 2000))
+				(epoch + 1, i + 1, len(train_loader.dataset)/train_loader.batch_size,running_loss / snapshot_interval))
 			running_loss = 0.0
 		
-		# save snapshot
-		if i % snapshot_interval == snapshot_interval-1:
-			print('snapshot save at epoch: %d, batch: %d' %\
-				(epoch + 1, i + 1))
+		# # save snapshot
+		# if i % snapshot_interval == snapshot_interval-1:
+		# 	print('snapshot save at epoch: %d, batch: %d' %\
+		# 		(epoch + 1, i + 1))
 
-			snapshot = {'epoch': epoch + 1, \
-			'state_dict': net.state_dict(), \
-			'optimizer': optimizer.state_dict(),\
-			'batch_end': False}
-			torch.save(snapshot, snapshot_path + '/snapshot_' + str(epoch+1) + '_' + str(i+1))
+		# 	snapshot = {'epoch': epoch + 1, \
+		# 	'state_dict': net.state_dict(), \
+		# 	'optimizer': optimizer.state_dict(),\
+		# 	'batch_end': False}
+		# 	torch.save(snapshot, snapshot_path + '/snapshot_' + str(epoch+1) + '_' + str(i+1))
 
 		# save snapshot after each epoch training
 		if (i+1) == len(train_loader):
@@ -73,7 +73,7 @@ def train(train_loader,net,epoch,criterion,optimizer,use_cuda,snapshot_path,snap
 			'batch_end': True}
 			torch.save(snapshot, snapshot_path + '/snapshot_' + str(epoch+1) + '_' + str(i+1))
 
-	print('Finished epoch %d' % (epoch+1))
+	print('Finish epoch %d' % (epoch+1))
 
 def show_image(data_loader,image_num,classes):
 		img = np.transpose(data_loader.dataset[image_num][0].numpy(2,0,1))
@@ -106,14 +106,15 @@ def test(test_loader,model,use_cuda):
 		100. * correct / len(test_loader.dataset)))
 
 def main():
-	batch_size = 4
+	batch_size = 50
 	[train_loader, test_loader] = load_data('./CIFAR10_data',batch_size)
 	use_cuda = True
 	snapshot_folder = './convnet_CIFAR10_snapshot'
 	training = True
-	snapshot_interval = 2000 # batch interval
+	snapshot_interval = 100 # batch interval
+	epochs = 100
 	load_snapshot = True
-	snapshot_file = 'snapshot_1_12500'
+	snapshot_file = 'snapshot_45_1000'
 
 	print('Finish loading data')
 	classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
@@ -143,7 +144,7 @@ def main():
 			start_epoch = snapshot['epoch']
 			net.load_state_dict(snapshot['state_dict'])
 			optimizer.load_state_dict(snapshot['optimizer'])
-			print("Net state at epoch %d" % snapshot['epoch'])
+			print("Successful load snapshot, net state at epoch %d" % snapshot['epoch'])
 			if snapshot['batch_end']:
 				start_epoch = start_epoch + 1
 				print('Snapshot reach batch end, start next epoch')
@@ -155,10 +156,8 @@ def main():
 		if not os.path.isdir(snapshot_folder):
 			os.mkdir(snapshot_folder)
 
-		for epoch in range(2):  # loop over the dataset multiple times, 1 epoch equals to 1 loop over
+		for epoch in range(epochs):  # loop over the dataset multiple times, 1 epoch equals to 1 loop over
 			if epoch + 1 >= start_epoch:
-				if load_snapshot:
-					print('Resume training at epoch %d' % (epoch + 1))
 				print('Training starts at epoch %d' % (epoch + 1))
 				train(train_loader,net,epoch,criterion,optimizer,use_cuda,snapshot_folder,snapshot_interval)
 				test(test_loader,net,use_cuda)
