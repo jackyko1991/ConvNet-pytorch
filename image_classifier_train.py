@@ -71,7 +71,7 @@ def train(train_loader,net,epoch,criterion,optimizer,use_cuda,snapshot_path,snap
 			'state_dict': net.state_dict(), \
 			'optimizer': optimizer.state_dict(),\
 			'batch_end': True}
-			torch.save(snapshot, snapshot_path + '/snapshot_' + str(epoch) + '_' + str(i+1))
+			torch.save(snapshot, snapshot_path + '/snapshot_' + str(epoch+1) + '_' + str(i+1))
 
 	print('Finished epoch %d' % (epoch+1))
 
@@ -113,7 +113,7 @@ def main():
 	training = True
 	snapshot_interval = 2000 # batch interval
 	load_snapshot = True
-	snapshot_file = 'snapshot_1_10000'
+	snapshot_file = 'snapshot_1_12500'
 
 	print('Finish loading data')
 	classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
@@ -154,15 +154,11 @@ def main():
 	if training:
 		if not os.path.isdir(snapshot_folder):
 			os.mkdir(snapshot_folder)
-		# else:
-		# 	files = glob.glob(snapshot_folder+'/*')
-		# 	for f in files:
-		# 		os.remove(f)
 
 		for epoch in range(2):  # loop over the dataset multiple times, 1 epoch equals to 1 loop over
 			if epoch + 1 >= start_epoch:
 				if load_snapshot:
-					print('Resume training at epoch %d' %snapshot['epoch'])
+					print('Resume training at epoch %d' % (epoch + 1))
 				print('Training starts at epoch %d' % (epoch + 1))
 				train(train_loader,net,epoch,criterion,optimizer,use_cuda,snapshot_folder,snapshot_interval)
 				test(test_loader,net,use_cuda)
