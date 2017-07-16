@@ -7,8 +7,10 @@ import random
 from torch.autograd import Variable
 import torch.optim as optim
 import torch.nn as nn
+import torch.nn.functional as F
 import os
 from convnet import ConvNet
+import shutil
 
 def load_data(data_path,batch_size):
 	# config import transformation, transfrom into torch tensor and applying normalization (from [0,1] to [-1,1])
@@ -58,8 +60,18 @@ def train(train_loader,net,epoch,criterion,optimizer,use_cuda,snapshot_path,snap
 
 			snapshot = {'epoch': epoch + 1, \
 			'state_dict': net.state_dict(), \
-			'optimizer': optimizer.state_dict()}
-			torch.save(snapshot, snapshot_path + '/snapshot' + str(epoch+1) + '_' + str(i+1))
+			'optimizer': optimizer.state_dict(),\
+			'batch_end': False}
+			torch.save(snapshot, snapshot_path + '/snapshot_' + str(epoch+1) + '_' + str(i+1))
+
+		# save snapshot after each epoch training
+		if (i+1) == len(train_loader):
+			print('Training of epoch {} finished, snapshot saved'.format(epoch+1))
+			snapshot = {'epoch': epoch+1, \
+			'state_dict': net.state_dict(), \
+			'optimizer': optimizer.state_dict(),\
+			'batch_end': True}
+			torch.save(snapshot, snapshot_path + '/snapshot_' + str(epoch) + '_' + str(i+1))
 
 	print('Finished epoch %d' % (epoch+1))
 
@@ -72,6 +84,27 @@ def show_image(data_loader,image_num,classes):
 		plt.axis('off')
 		plt.show()
 
+def test(test_loader,model,use_cuda):
+	model.eval()
+	test_loss = 0
+	correct = 0
+	for data, target in test_loader:
+		if use_cuda:
+			data, target = data.cuda(), target.cuda()
+		data, target = Variable(data, volatile=True), Variable(target)
+		output = model(data)
+		test_loss += F.nll_loss(output, target).data[0]
+		# get the index of the max log-probability
+		pred = output.data.max(1)[1]
+		correct += pred.eq(target.data).cpu().sum()
+
+	test_loss = test_loss
+	# loss function already averages over batch size
+	test_loss /= len(test_loader)
+	print('Test set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)'.format(
+		test_loss, correct, len(test_loader.dataset),
+		100. * correct / len(test_loader.dataset)))
+
 def main():
 	batch_size = 4
 	[train_loader, test_loader] = load_data('./CIFAR10_data',batch_size)
@@ -80,7 +113,7 @@ def main():
 	training = True
 	snapshot_interval = 2000 # batch interval
 	load_snapshot = True
-	snapshot_file = 'snapshot2_2000'
+	snapshot_file = 'snapshot_1_10000'
 
 	print('Finish loading data')
 	classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
@@ -104,18 +137,27 @@ def main():
 	start_epoch = 1
 	if load_snapshot:
 		resume_path = snapshot_folder+'/'+snapshot_file
-		# net.load_state_dict(torch.load(snapshot_folder+'/'+snapshot_file))
-		print("=> Loading snapshot '%s'" % (resume_path))
-		snapshot = torch.load(resume_path)
-		start_epoch = snapshot['epoch']
-		net.load_state_dict(snapshot['state_dict'])
-		optimizer.load_state_dict(snapshot['optimizer'])
-		print("Net state at epoch %d" % snapshot['epoch'])
+		if os.path.isfile(resume_path):
+			print("=> Loading snapshot '%s'" % (resume_path))
+			snapshot = torch.load(resume_path)
+			start_epoch = snapshot['epoch']
+			net.load_state_dict(snapshot['state_dict'])
+			optimizer.load_state_dict(snapshot['optimizer'])
+			print("Net state at epoch %d" % snapshot['epoch'])
+			if snapshot['batch_end']:
+				start_epoch = start_epoch + 1
+				print('Snapshot reach batch end, start next epoch')
+		else:
+			print("No checkpoint found at '{}', training starts from epoch 1".format(resume_path))
 
 	# training
 	if training:
 		if not os.path.isdir(snapshot_folder):
 			os.mkdir(snapshot_folder)
+		# else:
+		# 	files = glob.glob(snapshot_folder+'/*')
+		# 	for f in files:
+		# 		os.remove(f)
 
 		for epoch in range(2):  # loop over the dataset multiple times, 1 epoch equals to 1 loop over
 			if epoch + 1 >= start_epoch:
@@ -123,6 +165,7 @@ def main():
 					print('Resume training at epoch %d' %snapshot['epoch'])
 				print('Training starts at epoch %d' % (epoch + 1))
 				train(train_loader,net,epoch,criterion,optimizer,use_cuda,snapshot_folder,snapshot_interval)
+				test(test_loader,net,use_cuda)
 		print("Finish training")
 
 if __name__ == '__main__':

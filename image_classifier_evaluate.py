@@ -50,6 +50,7 @@ def main():
 	input[0,:] = data_loader.dataset[image_num][0]
 
 	output = net(Variable(input.cuda()))
+	print(output)
 	_, predicted = torch.max(output.data, 1)
 	print('Predicted: %s' % classes[predicted[0][0]]) # remind that the input has a 4D dimension (batch, channel, width, height)
 
